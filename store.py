@@ -46,7 +46,7 @@ class Store:
 
 
 class IndexedStore:
-    def __init__(self, store: Store):
+    def __init__(self, store):
         self.store = store
         self._index = {}
         self.index()
@@ -78,7 +78,7 @@ class IndexedStore:
 
 
 class BufferedStore:
-    def __init__(self, store: Store, size: int):
+    def __init__(self, store, size):
         self.store = store
         self.size = size
         self.buffer = {}
@@ -100,12 +100,12 @@ class BufferedStore:
 
 
 class CachedStore:
-    def __init__(self, store: Store, cache_size: int):
+    def __init__(self, store, cache_size):
         self.store = store
         self.cache_size = cache_size
         self.cache = {}
 
-    def get(self, key: str):
+    def get(self, key):
         if key in self.cache:
             return self.cache[key]
         value = self.store.get(key)
