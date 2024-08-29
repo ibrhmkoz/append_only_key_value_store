@@ -40,7 +40,7 @@ class TestCachedStore(unittest.TestCase):
         event_bus.subscribe(CacheMissEvent, self.cache_misses)
 
         self.store = CachedStore(AppendOnlyLogStore('test_log.txt'), 5, event_bus)
-        pairs = [Pair(f'key{i}', f'value{i}') for i in range(15)]
+        pairs = [Pair(f'key{i}', f'value{i}') for i in range(150)]
         for pair in pairs:
             self.store.put(pair.key, pair.value)
 
@@ -49,13 +49,15 @@ class TestCachedStore(unittest.TestCase):
         self.store.get("key6")
         self.store.get("key7")
         self.store.get("key9")
-
-        # Cache hits
         self.store.get("key13")
         self.store.get("key14")
 
+        # Cache hits
+        self.store.get("key14")
+        self.store.get("key7")
+
         # Assert
-        self.assertEqual(self.cache_misses.count, 3)
+        self.assertEqual(self.cache_misses.count, 5)
         self.assertEqual(self.cache_hits.count, 2)
 
     def tearDown(self):
