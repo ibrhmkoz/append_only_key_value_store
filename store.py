@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 from dataclasses import dataclass
 
 
@@ -9,6 +10,19 @@ class Pair:
 
 
 class Store:
+    def put(self, key, value):
+        raise NotImplementedError
+
+    def get(self, key):
+        raise NotImplementedError
+
+
+class BulkStore(Store):
+    def bulk_put(self, pairs):
+        raise NotImplementedError
+
+
+class AppendOnlyLogStore:
     def __init__(self, log_path):
         self.log_path = log_path
         if not os.path.exists(log_path):
@@ -120,6 +134,45 @@ class CacheEvictionEvent:
         self.key = key
 
 
+class CachedStore:
+    def __init__(self, store, cache_size, bus=None):
+        self.store = store
+        self.cache_size = cache_size
+        self.cache = OrderedDict()
+        self.bus = bus
+
+    def get(self, key):
+        if key in self.cache:
+            # Move the accessed item to the end (most recently used)
+            self.cache.move_to_end(key)
+            if self.bus:
+                self.bus.emit(CacheHitEvent(key))
+            return self.cache[key]
+
+        if self.bus:
+            self.bus.emit(CacheMissEvent(key))
+
+        value = self.store.get(key)
+        if value is not None:
+            self._add_to_cache(key, value)
+        return value
+
+    def put(self, key, value):
+        self.store.put(key, value)
+        self._add_to_cache(key, value)
+
+    def _add_to_cache(self, key, value):
+        if key in self.cache:
+            # If key already exists, move it to the end (most recently used)
+            self.cache.move_to_end(key)
+        elif len(self.cache) >= self.cache_size:
+            # If cache is full, remove the least recently used item
+            evicted_key, _ = self.cache.popitem(last=False)
+            if self.bus:
+                self.bus.emit(CacheEvictionEvent(evicted_key))
+        self.cache[key] = value
+
+
 class EventBus:
     def __init__(self):
         self.listeners = {}
@@ -133,33 +186,3 @@ class EventBus:
         if event.type in self.listeners:
             for listener in self.listeners[event.type]:
                 listener(event)
-
-
-class CachedStore:
-    def __init__(self, store, cache_size, bus=None):
-        self.store = store
-        self.cache_size = cache_size
-        self.cache = {}
-        self.bus = bus
-
-    def get(self, key):
-        if key in self.cache:
-            if self.bus:
-                self.bus.emit(CacheHitEvent(key))
-            return self.cache[key]
-
-        if self.bus:
-            self.bus.emit(CacheMissEvent(key))
-
-        value = self.store.get(key)
-        if value is not None:
-            self.cache[key] = value
-        return value
-
-    def put(self, key, value):
-        self.store.put(key, value)
-        if len(self.cache) >= self.cache_size and key not in self.cache:
-            evicted_key, _ = self.cache.popitem()
-            if self.bus:
-                self.bus.emit(CacheEvictionEvent(evicted_key))
-        self.cache[key] = value
