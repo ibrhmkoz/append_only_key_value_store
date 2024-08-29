@@ -1,8 +1,8 @@
 import unittest
 
 from event_bus import InMemoryEventBus
-from store import AppendOnlyLogStore, IndexedStore, BufferedStore, CachedStore, Pair, CacheHitEvent, \
-    CacheMissEvent, BufferFlushEvent
+from store import AppendOnlyLogStore, IndexedStore, BufferedStore, CachedStore, Pair, CacheHit, \
+    CacheMissed, BufferFlushed
 
 
 class TestStore(unittest.TestCase):
@@ -37,8 +37,8 @@ class TestCachedStore(unittest.TestCase):
         self.cache_misses = EventCounter()
 
         event_bus = InMemoryEventBus()
-        event_bus.subscribe(CacheHitEvent, self.cache_hits)
-        event_bus.subscribe(CacheMissEvent, self.cache_misses)
+        event_bus.subscribe(CacheHit, self.cache_hits)
+        event_bus.subscribe(CacheMissed, self.cache_misses)
 
         self.store = CachedStore(AppendOnlyLogStore('test_log.txt'), 5, event_bus)
         pairs = [Pair(f'key{i}', f'value{i}') for i in range(150)]
@@ -71,7 +71,7 @@ class TestBufferedStore(unittest.TestCase):
         self.flushes = EventCounter()
 
         self.event_bus = InMemoryEventBus()
-        self.event_bus.subscribe(BufferFlushEvent, self.flushes)
+        self.event_bus.subscribe(BufferFlushed, self.flushes)
 
         self.store = BufferedStore(AppendOnlyLogStore('test_log.txt'), 3, self.event_bus)
 

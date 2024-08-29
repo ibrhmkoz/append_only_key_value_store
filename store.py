@@ -94,8 +94,8 @@ class IndexedStore:
 
 
 @dataclass
-class BufferFlushEvent:
-    type = "buffer_flush"
+class BufferFlushed:
+    type = "buffer_flushed"
 
 
 class BufferedStore:
@@ -118,26 +118,19 @@ class BufferedStore:
     def flush(self):
         pairs = [Pair(k, v) for k, v in self.buffer.items()]
         self.bulk_store.bulk_put(pairs)
-        self.bus.emit(BufferFlushEvent())
+        self.bus.emit(BufferFlushed())
         self.buffer.clear()
 
 
-class CacheHitEvent:
+class CacheHit:
     type = "cache_hit"
 
     def __init__(self, key):
         self.key = key
 
 
-class CacheMissEvent:
-    type = "cache_miss"
-
-    def __init__(self, key):
-        self.key = key
-
-
-class CacheEvictionEvent:
-    type = "cache_eviction"
+class CacheMissed:
+    type = "cache_missed"
 
     def __init__(self, key):
         self.key = key
@@ -154,10 +147,10 @@ class CachedStore:
         if key in self.cache:
             # Move the accessed item to the end (most recently used)
             self.cache.move_to_end(key)
-            self.bus.emit(CacheHitEvent(key))
+            self.bus.emit(CacheHit(key))
             return self.cache[key]
 
-        self.bus.emit(CacheMissEvent(key))
+        self.bus.emit(CacheMissed(key))
 
         value = self.store.get(key)
         if value is not None:
@@ -174,6 +167,5 @@ class CachedStore:
             self.cache.move_to_end(key)
         elif len(self.cache) >= self.cache_size:
             # If cache is full, remove the least recently used item
-            evicted_key, _ = self.cache.popitem(last=False)
-            self.bus.emit(CacheEvictionEvent(evicted_key))
+            self.cache.popitem(last=False)
         self.cache[key] = value
