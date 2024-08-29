@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 
 
@@ -10,6 +11,9 @@ class Pair:
 class Store:
     def __init__(self, log_path):
         self.log_path = log_path
+        if not os.path.exists(log_path):
+            with open(log_path, 'w'):
+                pass
 
     def put(self, key, value):
         with open(self.log_path, 'a') as file:
