@@ -8,18 +8,18 @@ class Pair:
 
 
 class Store:
-    def __init__(self, file_name):
-        self.file_name = file_name
+    def __init__(self, log_path):
+        self.log_path = log_path
 
     def put(self, key, value):
-        with open(self.file_name, 'a') as file:
+        with open(self.log_path, 'a') as file:
             offset = file.tell()
             file.write(f'{key}:{str(value)}\n')
         return offset
 
     def bulk_put(self, pairs):
         offsets = []
-        with open(self.file_name, 'a') as file:
+        with open(self.log_path, 'a') as file:
             for pair in pairs:
                 offset = file.tell()
                 file.write(f'{pair.key}:{str(pair.value)}\n')
@@ -27,14 +27,14 @@ class Store:
         return offsets
 
     def get(self, key):
-        with open(self.file_name, 'r') as file:
+        with open(self.log_path, 'r') as file:
             for line in file:
                 if line.startswith(key):
                     return line.split(':')[1].strip()
         return None
 
     def get_at_offset(self, offset: int):
-        with open(self.file_name, 'r') as file:
+        with open(self.log_path, 'r') as file:
             file.seek(offset)
             line = file.readline().strip()
             key, value = line.split(':', 1)
@@ -63,7 +63,7 @@ class IndexedStore:
 
     def index(self):
         self._index.clear()
-        with open(self.store.file_name, 'r') as file:
+        with open(self.store.log_path, 'r') as file:
             while True:
                 offset = file.tell()
                 line = file.readline()
