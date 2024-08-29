@@ -1,7 +1,7 @@
 import unittest
 
 from store import AppendOnlyLogStore, IndexedStore, BufferedStore, CachedStore, Pair, EventBus, CacheHitEvent, \
-    CacheMissEvent
+    CacheMissEvent, BufferFlushEvent
 
 
 class TestStore(unittest.TestCase):
@@ -22,15 +22,16 @@ class TestStore(unittest.TestCase):
         os.remove('test_log.txt')
 
 
+class EventCounter:
+    def __init__(self):
+        self.count = 0
+
+    def __call__(self, event):
+        self.count += 1
+
+
 class TestCachedStore(unittest.TestCase):
     def setUp(self):
-        class EventCounter:
-            def __init__(self):
-                self.count = 0
-
-            def __call__(self, event):
-                self.count += 1
-
         self.cache_hits = EventCounter()
         self.cache_misses = EventCounter()
 
@@ -56,6 +57,34 @@ class TestCachedStore(unittest.TestCase):
         # Assert
         self.assertEqual(self.cache_misses.count, 3)
         self.assertEqual(self.cache_hits.count, 2)
+
+    def tearDown(self):
+        import os
+        os.remove('test_log.txt')
+
+
+class TestBufferedStore(unittest.TestCase):
+    def setUp(self):
+        self.flushes = EventCounter()
+
+        self.event_bus = EventBus()
+        self.event_bus.subscribe(BufferFlushEvent, self.flushes)
+
+        self.store = BufferedStore(AppendOnlyLogStore('test_log.txt'), 3, self.event_bus)
+
+    def test_buffer_flush(self):
+        # Add items to buffer
+        self.store.put('key1', 'value1')
+        self.store.put('key2', 'value2')
+        self.assertEqual(self.flushes.count, 0)  # No flush yet
+
+        # Trigger flush
+        self.store.put('key3', 'value3')
+        self.assertEqual(self.flushes.count, 1)  # Flush occurred
+
+        # Add one more item
+        self.store.put('key4', 'value4')
+        self.assertEqual(self.flushes.count, 1)  # No new flush
 
     def tearDown(self):
         import os

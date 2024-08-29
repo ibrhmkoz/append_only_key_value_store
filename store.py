@@ -91,25 +91,33 @@ class IndexedStore:
                 self._index[key] = offset
 
 
+@dataclass
+class BufferFlushEvent:
+    type = "buffer_flush"
+
+
 class BufferedStore:
-    def __init__(self, store, size):
-        self.store = store
+    def __init__(self, bulk_store, size, bus=None):
+        self.bulk_store = bulk_store
         self.size = size
         self.buffer = {}
+        self.bus = bus
 
     def put(self, key, value):
         self.buffer[key] = value
         if len(self.buffer) == self.size:
             self.flush()
 
-    def get(self, key: str):
+    def get(self, key):
         if key in self.buffer:
             return self.buffer[key]
-        return self.store.get(key)
+        return self.bulk_store.get(key)
 
     def flush(self):
         pairs = [Pair(k, v) for k, v in self.buffer.items()]
-        self.store.bulk_put(pairs)
+        self.bulk_store.bulk_put(pairs)
+        if self.bus:
+            self.bus.emit(BufferFlushEvent())
         self.buffer.clear()
 
 
