@@ -2,6 +2,8 @@ import os
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from event_bus import NoOpEventBus
+
 
 @dataclass
 class Pair:
@@ -97,7 +99,7 @@ class BufferFlushEvent:
 
 
 class BufferedStore:
-    def __init__(self, bulk_store, size, bus=None):
+    def __init__(self, bulk_store, size, bus=NoOpEventBus):
         self.bulk_store = bulk_store
         self.size = size
         self.buffer = {}
@@ -116,8 +118,7 @@ class BufferedStore:
     def flush(self):
         pairs = [Pair(k, v) for k, v in self.buffer.items()]
         self.bulk_store.bulk_put(pairs)
-        if self.bus:
-            self.bus.emit(BufferFlushEvent())
+        self.bus.emit(BufferFlushEvent())
         self.buffer.clear()
 
 
@@ -143,7 +144,7 @@ class CacheEvictionEvent:
 
 
 class CachedStore:
-    def __init__(self, store, cache_size, bus=None):
+    def __init__(self, store, cache_size, bus=NoOpEventBus):
         self.store = store
         self.cache_size = cache_size
         self.cache = OrderedDict()
@@ -153,12 +154,10 @@ class CachedStore:
         if key in self.cache:
             # Move the accessed item to the end (most recently used)
             self.cache.move_to_end(key)
-            if self.bus:
-                self.bus.emit(CacheHitEvent(key))
+            self.bus.emit(CacheHitEvent(key))
             return self.cache[key]
 
-        if self.bus:
-            self.bus.emit(CacheMissEvent(key))
+        self.bus.emit(CacheMissEvent(key))
 
         value = self.store.get(key)
         if value is not None:
@@ -176,21 +175,5 @@ class CachedStore:
         elif len(self.cache) >= self.cache_size:
             # If cache is full, remove the least recently used item
             evicted_key, _ = self.cache.popitem(last=False)
-            if self.bus:
-                self.bus.emit(CacheEvictionEvent(evicted_key))
+            self.bus.emit(CacheEvictionEvent(evicted_key))
         self.cache[key] = value
-
-
-class EventBus:
-    def __init__(self):
-        self.listeners = {}
-
-    def subscribe(self, event_class, listener):
-        if event_class.type not in self.listeners:
-            self.listeners[event_class.type] = []
-        self.listeners[event_class.type].append(listener)
-
-    def emit(self, event):
-        if event.type in self.listeners:
-            for listener in self.listeners[event.type]:
-                listener(event)
