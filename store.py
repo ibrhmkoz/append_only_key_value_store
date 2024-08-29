@@ -99,15 +99,58 @@ class BufferedStore:
         self.buffer.clear()
 
 
+class CacheHitEvent:
+    type = "cache_hit"
+
+    def __init__(self, key):
+        self.key = key
+
+
+class CacheMissEvent:
+    type = "cache_miss"
+
+    def __init__(self, key):
+        self.key = key
+
+
+class CacheEvictionEvent:
+    type = "cache_eviction"
+
+    def __init__(self, key):
+        self.key = key
+
+
+class EventBus:
+    def __init__(self):
+        self.listeners = {}
+
+    def subscribe(self, event_class, listener):
+        if event_class.type not in self.listeners:
+            self.listeners[event_class.type] = []
+        self.listeners[event_class.type].append(listener)
+
+    def emit(self, event):
+        if event.type in self.listeners:
+            for listener in self.listeners[event.type]:
+                listener(event)
+
+
 class CachedStore:
-    def __init__(self, store, cache_size):
+    def __init__(self, store, cache_size, bus=None):
         self.store = store
         self.cache_size = cache_size
         self.cache = {}
+        self.bus = bus
 
     def get(self, key):
         if key in self.cache:
+            if self.bus:
+                self.bus.emit(CacheHitEvent(key))
             return self.cache[key]
+
+        if self.bus:
+            self.bus.emit(CacheMissEvent(key))
+
         value = self.store.get(key)
         if value is not None:
             self.cache[key] = value
@@ -115,6 +158,8 @@ class CachedStore:
 
     def put(self, key, value):
         self.store.put(key, value)
+        if len(self.cache) >= self.cache_size and key not in self.cache:
+            evicted_key, _ = self.cache.popitem()
+            if self.bus:
+                self.bus.emit(CacheEvictionEvent(evicted_key))
         self.cache[key] = value
-        if len(self.cache) > self.cache_size:
-            self.cache.popitem()
